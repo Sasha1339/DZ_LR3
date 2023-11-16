@@ -1,103 +1,95 @@
 package ru.mpei;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Data;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.pcap4j.core.*;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@Data
+@Slf4j
 public class RawUdpSocketServer {
 
+    private PcapHandle pcapHandle;
+
+    private ObjectMapper mapper = new ObjectMapper();
+
+    private AgentInfo agentInfo;
+
+    private String nameAgent;
+
+    private boolean isLoop = true;
+
+
+    public RawUdpSocketServer(String nameAgent){
+        this.nameAgent = nameAgent;
+    }
+
+//    public void clearAgents(){
+//        agents.clear();
+//    }
 
     @SneakyThrows
-    public void start(int port){
-/**
- * Pcap - это универсальный и большой инструмент, который позваляет делать много чего
- * у него есть много разных статических методов, если вспомнить Wireshark - прежде чем слушать, мы выбираем где мы будем слушать
- * так и с Pcaps, нужно выбрать где мы будем слушать
- * мы хотим слушать на локалхосте - делая метод findAllDevs
- */
+    public void init(int port){
         List<PcapNetworkInterface> allDevs = Pcaps.findAllDevs();
 
-        /**
-         * снизу так мы можем вывести все интерфесы,
-         * нам нужен конкретный
-         */
-//        for(PcapNetworkInterface pni: allDevs){
-//            System.out.println(pni);
-//        }
-        /**
-         * для того чтобы найти конкретный интерфейс
-         */
-        /**
-         * наш интерфейс - это определенный класс PcapNetworkInterface
-         */
         PcapNetworkInterface interfacePcap = allDevs.stream()
                 .filter(a -> a.getName().equals("\\Device\\NPF_Loopback")).findFirst().orElseThrow();
         System.out.println(interfacePcap);
-
-        /**
-         * здесь хорошо бы реализовать случай если интерфейс найдем не был
-         */
-        //TODO: if interfacePcap was no found
-
-        /**
-         * далее рассмторим какие методы вообще есть, одним из методов openLive() - открыть прием пакетов
-         */
-        /**
-         * параметры которые подаем - рекомендуемые параметры 65536, PROMISCUOUS
-         * ВАЖНО! тайм оут - как часто будут выдаваться пакеты, если сдеалть -1 - то на каждый пакет который приходит будет
-         * вызываться функция, которая эти пакеты будет выдавать
-         * Евгений Игоревич предложил сделать около 50 мс, иначе при -1 система будет сильно нагружаться.
-         * 50 мс накапливает и потом выдаем
-         */
-
-        PcapHandle pcapHandle = interfacePcap.openLive(65536, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 50);
-        /**
-         * теперь что касается фильтра
-         * мы фильтруем по протоколу, который нам нужен UDP и по порту
-         * опять же все остальное заполняется исходя из рекомендаций
-         */
-
+        pcapHandle = interfacePcap.openLive(65536, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 5000);
         pcapHandle.setFilter("ip proto \\udp && dst port "+port, BpfProgram.BpfCompileMode.NONOPTIMIZE);
-
-        /**
-         *  теперь обработка пакетов, каждые получается 50 мс он накапливает пакеты и пихает их ниже
-         */
+    }
 
 
-        new Thread(() -> {
+    @SneakyThrows
+    public void start(List<String> agents){
+        pcapHandle.loop(0, (PacketListener) p -> {
+            byte[] rawData = p.getRawData();
+            byte[] data = new byte[rawData.length-32];
+            System.arraycopy(rawData, 32, data, 0, data.length);
+            String stringData = new String(data, StandardCharsets.UTF_8);
             try {
-                pcapHandle.loop(0, (PacketListener) p -> {
-                    /**
-                     * берем наш пакет берем у него rawData() то бишь получение данных из пакета
-                     * и пихаем их в байты (поскольку получаем именно байты)
-                     */
-                    byte[] rawData = p.getRawData();
-                    /**
-                     * внимание сюда придет и заголовки как для UDP так и для IPv4
-                     */
-//                    Path path = Paths.get("text.txt");
-//                    try (BufferedWriter bw = Files.newBufferedWriter(path, StandardCharsets.UTF_8))
-//                    {
-//                        bw.write(new String(rawData));
-//                        System.out.println("Successfully written data to the file");
-//                    }
-//                    catch (IOException e) {
-//                        e.printStackTrace();
-//                    }
-//                    byte[] data = new byte[rawData.length-32];
-//                    System.arraycopy(rawData, 32, data, 0, data.length);
-                    System.out.println(Arrays.toString(rawData));
-                });
-
-            } catch (PcapNativeException | InterruptedException | NotOpenException e) {
+                agentInfo = mapper.readValue(stringData, new TypeReference<AgentInfo>() {});
+            } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-        }).start();
-
-
-
+            if (!agentInfo.getAgentName().equals(nameAgent)){
+                log.info(nameAgent+": Received message from "+agentInfo.getAgentName());
+                agents.add(agentInfo.getAgentName());
+            }
+            if (!isLoop){
+                try {
+                    pcapHandle.breakLoop();
+                } catch (NotOpenException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
     }
+
+//    @SneakyThrows
+//    public void checkedAliveAgents(){
+//        pcapHandle.loop(0, (PacketListener) p -> {
+//            byte[] rawData = p.getRawData();
+//            byte[] data = new byte[rawData.length-32];
+//            System.arraycopy(rawData, 32, data, 0, data.length);
+//            String stringData = data.toString();
+//            try {
+//                agentInfo = mapper.readValue(stringData, new TypeReference<AgentInfo>() {});
+//            } catch (JsonProcessingException e) {
+//                throw new RuntimeException(e);
+//            }
+//            if (!agentInfo.getAgentName().equals(nameAgent)){
+//                agents.add(agentInfo.getAgentName());
+//            }
+//        });
+//    }
 
 }

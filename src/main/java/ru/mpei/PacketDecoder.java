@@ -9,14 +9,14 @@ import java.net.UnknownHostException;
 
 public class PacketDecoder {
 
-    int id = 594;
-    String messageStr = "";
-    byte[] nullLoopback;
-    byte[] headerIPv4 = new byte[0];
-    byte[] headerUDP = new byte[0];
-    byte[] addressCode;
-    byte[] portCode;
-    int sumForCheckSum = 0;
+    private int id = 594;
+    private String messageStr = "";
+    private byte[] nullLoopback;
+    private byte[] headerIPv4 = new byte[0];
+    private byte[] headerUDP = new byte[0];
+    private byte[] addressCode;
+    private byte[] portCode;
+    private int sumForCheckSum = 0;
 
     private String calculateCheckSum(){
         String checkHex = Integer.toHexString(sumForCheckSum);
@@ -258,8 +258,11 @@ public class PacketDecoder {
         this.headerUDP = sumTwoArray(headerUDP, portCode);
         this.headerUDP = sumTwoArray(headerUDP, comLenUdpCode);
         this.headerUDP = sumTwoArray(headerUDP, checkSumCode);
-
-        return sumTwoArray(nullLoopback, sumTwoArray(headerIPv4, sumTwoArray(headerUDP, messageStr.getBytes())));
+        this.sumForCheckSum = 0;
+        byte[] result = sumTwoArray(nullLoopback, sumTwoArray(headerIPv4, sumTwoArray(headerUDP, messageStr.getBytes())));
+        this.headerIPv4 = new byte[0];
+        this.headerUDP = new byte[0];
+        return result;
     }
 
 //
