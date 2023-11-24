@@ -14,8 +14,6 @@ public class Main {
             byte[] packetCode = packetDecoder.code("hello2");
             System.out.println(Arrays.toString(packetCode));
 
-
-
         AgentInfo agentInfo;
         try {
             ObjectMapper mapper = new ObjectMapper();

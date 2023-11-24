@@ -31,7 +31,7 @@ public class AgentDetectorClass implements AgentDetector{
 
     private PacketDecoder packetDecoder;
     private List<AID> firstAgents = new CopyOnWriteArrayList<>();
-    List<String> agents = new CopyOnWriteArrayList<>();
+    private List<String> agents = new CopyOnWriteArrayList<>();
 
     public AgentDetectorClass(int port, Agent agent, String nameService) {
         this.agent = agent;
@@ -61,10 +61,8 @@ public class AgentDetectorClass implements AgentDetector{
                 //rawUdpSocketClient.send(new byte[]{2, 0, 0, 0, 69, 0, 0, 34, 2, 82, 0, 0, 64, 17, 0, 0, 10, 3, 2, 71, 10, 3, 2, 71, -105, 33, 4, -80, 0, 14, 7, 107, 104, 101, 108, 108, 111, 48});
                 rawUdpSocketClient.send(data);
             } else {
-                rawUdpSocketServer.setLoop(false);
+               rawUdpSocketServer.setLoop(false);
             }
-
-
     }
 
     @Override
@@ -86,23 +84,23 @@ public class AgentDetectorClass implements AgentDetector{
     }
 
     public void checkAgents(){
-        List<AID> newAgents = this.getActiveAgents();
-        System.out.println(newAgents.toString());
-        if (this.getCount() == 1){
-            firstAgents = newAgents;
-            this.setCount(2);
-        } else {
-            if (firstAgents.size() != newAgents.size()){
-                for (AID aid: firstAgents){
-                    if (!newAgents.contains(aid)){
-                        log.warn(agent.getLocalName()+": Agent "+aid.getLocalName()+" was dead!");
-                        firstAgents.remove(aid);
-                        break;
+            List<AID> newAgents = this.getActiveAgents();
+            //System.out.println(newAgents.toString());
+            if (this.getCount() == 1 && !newAgents.isEmpty()){
+                firstAgents = newAgents;
+                this.setCount(2);
+            } else if((firstAgents.size()>1 && !newAgents.isEmpty()) || (firstAgents.size() == 1 && newAgents.isEmpty())) {
+                if (firstAgents.size() != newAgents.size()){
+                    for (AID aid: firstAgents){
+                        if (!newAgents.contains(aid)){
+                            log.warn(agent.getLocalName()+": Agent "+aid.getLocalName()+" was dead!");
+                            firstAgents.remove(aid);
+                            break;
+                        }
                     }
                 }
             }
-        }
-        this.clearList();
+            this.clearList();
     }
 
 }

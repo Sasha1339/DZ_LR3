@@ -12,9 +12,9 @@ public class JadeStarter {
 
     public static void main(String[] args) {
         Map<String, Class<?>> agents = Map.of(
-                "Croupier", FunctionAgent.class,
-                "SellerOne", FunctionAgent.class,
-                "SellerTwo", FunctionAgent.class
+                "Bogomol", FunctionAgent.class,
+                "Panda", FunctionAgent.class,
+                "Tigra", FunctionAgent.class
         );
 
         Properties props = new ExtendedProperties();

@@ -6,14 +6,13 @@ import org.apache.commons.codec.binary.Hex;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class PacketDecoder {
-
     private int id = 594;
     private String messageStr = "";
-    private byte[] nullLoopback;
-    private byte[] headerIPv4 = new byte[0];
-    private byte[] headerUDP = new byte[0];
     private byte[] addressCode;
     private byte[] portCode;
     private int sumForCheckSum = 0;
@@ -144,6 +143,7 @@ public class PacketDecoder {
         String address = null;
         try {
             address = InetAddress.getLocalHost().getHostAddress();
+            //address = "10.3.2.71";
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
@@ -164,16 +164,16 @@ public class PacketDecoder {
         addressIntArr[0] = Integer.parseInt(sumAddr[0], 16);
         addressIntArr[1] = Integer.parseInt(sumAddr[1], 16);
         sumForCheckSum += 2 * (addressIntArr[0]+addressIntArr[1]);
-        String result = "";
+
+        byte[] resultByte = new byte[4];
         try {
-            for (String hexString: addressArr){
-                byte[] bytes = Hex.decodeHex(hexString.toCharArray());
-                result += new String(bytes, "UTF-8");
+            for (int i = 0; i < resultByte.length; i++){
+                resultByte[i] = Hex.decodeHex(addressArr[i].toCharArray())[0];
             }
-        } catch (UnsupportedEncodingException | DecoderException e) {
+        } catch (DecoderException e) {
             throw new RuntimeException(e);
         }
-        return result.getBytes();
+        return resultByte;
     }
 
     private void codeDataAndSumForChekSum(String data){
@@ -208,13 +208,13 @@ public class PacketDecoder {
 
     public byte[] code(String data) {
         codeDataAndSumForChekSum(data);
-        this.messageStr = data;
+        byte[] message = data.getBytes();
         // формирвоание закодированной строки для адреса
         this.addressCode = codeAddress();
         // формирвоание закодированного порта
         this.portCode = codeIntToTwoBite(1200, true, 1);
         //кодировка Null/Loopback
-        this.nullLoopback = codeKnownCountAndValueBite(new String[]{"02", "00", "00", "00"});
+        byte[] nullloopBack = codeKnownCountAndValueBite(new String[]{"02", "00", "00", "00"});
         //кодирование протокола IPv4
         byte[] startHeader = codeKnownCountAndValueBite(new String[]{"45", "00"});
         int commonLen = 20 + 8 + messageStr.length();
@@ -228,21 +228,19 @@ public class PacketDecoder {
         byte[] flagAndOffset = codeKnownCountAndValueBite(new String[]{"00", "00"});
         // кодировка времени жизни = 64
         byte[] timeLiveCode = codeIntToOneBite(64, false);
-        //this.headerIPv4 += timeLiveCode;
         // кодировка верхнеуровненго протокола UDP = 17
         byte[] protocolCode = codeIntToOneBite(17, true);
         //Ормирование чек суммы для заголовка IPv4
         byte[] checkIp = codeKnownCountAndValueBite(new String[]{"00", "00"});
 
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, startHeader);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, comLenCode);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, identCode);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, flagAndOffset);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, timeLiveCode);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, protocolCode);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, checkIp);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, addressCode);
-        this.headerIPv4 = sumTwoArray(this.headerIPv4, addressCode);
+        byte[] one = sumTwoArray(startHeader, comLenCode);
+        byte[] two = sumTwoArray(one, identCode);
+        byte[] three = sumTwoArray(two, flagAndOffset);
+        byte[] four = sumTwoArray(three, timeLiveCode);
+        byte[] five = sumTwoArray(four, protocolCode);
+        byte[] six = sumTwoArray(five, checkIp);
+        byte[] seven = sumTwoArray(six, addressCode);
+        byte[] headerIP = sumTwoArray(seven, addressCode);
 
 
         // формирвоание заголовка протокола UDP
@@ -254,14 +252,12 @@ public class PacketDecoder {
         // кодирование чек суммы
         byte[] checkSumCode = codeCheckSum();
 
-        this.headerUDP = sumTwoArray(headerUDP, portClientCode);
-        this.headerUDP = sumTwoArray(headerUDP, portCode);
-        this.headerUDP = sumTwoArray(headerUDP, comLenUdpCode);
-        this.headerUDP = sumTwoArray(headerUDP, checkSumCode);
+        byte[] eight = sumTwoArray(portClientCode, portCode);
+        byte[] nine = sumTwoArray(eight, comLenUdpCode);
+        byte[] headerUdp = sumTwoArray(nine, checkSumCode);
         this.sumForCheckSum = 0;
-        byte[] result = sumTwoArray(nullLoopback, sumTwoArray(headerIPv4, sumTwoArray(headerUDP, messageStr.getBytes())));
-        this.headerIPv4 = new byte[0];
-        this.headerUDP = new byte[0];
+        byte[] result = sumTwoArray(nullloopBack, sumTwoArray(headerIP, sumTwoArray(headerUdp, message)));
+
         return result;
     }
 

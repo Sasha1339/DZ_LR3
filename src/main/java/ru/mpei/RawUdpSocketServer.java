@@ -27,14 +27,9 @@ public class RawUdpSocketServer {
 
     private boolean isLoop = true;
 
-
     public RawUdpSocketServer(String nameAgent){
         this.nameAgent = nameAgent;
     }
-
-//    public void clearAgents(){
-//        agents.clear();
-//    }
 
     @SneakyThrows
     public void init(int port){
@@ -43,53 +38,42 @@ public class RawUdpSocketServer {
         PcapNetworkInterface interfacePcap = allDevs.stream()
                 .filter(a -> a.getName().equals("\\Device\\NPF_Loopback")).findFirst().orElseThrow();
         System.out.println(interfacePcap);
-        pcapHandle = interfacePcap.openLive(65536, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 5000);
+        pcapHandle = interfacePcap.openLive(65536, PcapNetworkInterface.PromiscuousMode.PROMISCUOUS, 1000);
         pcapHandle.setFilter("ip proto \\udp && dst port "+port, BpfProgram.BpfCompileMode.NONOPTIMIZE);
     }
 
 
     @SneakyThrows
     public void start(List<String> agents){
-        pcapHandle.loop(0, (PacketListener) p -> {
-            byte[] rawData = p.getRawData();
-            byte[] data = new byte[rawData.length-32];
-            System.arraycopy(rawData, 32, data, 0, data.length);
-            String stringData = new String(data, StandardCharsets.UTF_8);
+        new Thread(() -> {
             try {
-                agentInfo = mapper.readValue(stringData, new TypeReference<AgentInfo>() {});
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                pcapHandle.loop(0, (PacketListener) p -> {
+                    byte[] rawData = p.getRawData();
+                    byte[] data = new byte[rawData.length-32];
+                    System.arraycopy(rawData, 32, data, 0, data.length);
+                    String stringData = new String(data, StandardCharsets.UTF_8);
+                    try {
+                        agentInfo = mapper.readValue(stringData, new TypeReference<AgentInfo>() {});
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+                    if (!agentInfo.getAgentName().equals(nameAgent)){
+                        log.info(nameAgent+": Received message from "+agentInfo.getAgentName());
+                        agents.add(agentInfo.getAgentName());
+                    }
+                    if (!isLoop){
+                        try {
+                            pcapHandle.breakLoop();
+                        } catch (NotOpenException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                });
+            } catch (PcapNativeException | InterruptedException | NotOpenException e) {
+                //
             }
-            if (!agentInfo.getAgentName().equals(nameAgent)){
-                log.info(nameAgent+": Received message from "+agentInfo.getAgentName());
-                agents.add(agentInfo.getAgentName());
-            }
-            if (!isLoop){
-                try {
-                    pcapHandle.breakLoop();
-                } catch (NotOpenException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-    }
+        }).start();
 
-//    @SneakyThrows
-//    public void checkedAliveAgents(){
-//        pcapHandle.loop(0, (PacketListener) p -> {
-//            byte[] rawData = p.getRawData();
-//            byte[] data = new byte[rawData.length-32];
-//            System.arraycopy(rawData, 32, data, 0, data.length);
-//            String stringData = data.toString();
-//            try {
-//                agentInfo = mapper.readValue(stringData, new TypeReference<AgentInfo>() {});
-//            } catch (JsonProcessingException e) {
-//                throw new RuntimeException(e);
-//            }
-//            if (!agentInfo.getAgentName().equals(nameAgent)){
-//                agents.add(agentInfo.getAgentName());
-//            }
-//        });
-//    }
+    }
 
 }
