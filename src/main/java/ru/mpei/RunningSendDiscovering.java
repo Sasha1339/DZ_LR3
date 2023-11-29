@@ -8,6 +8,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * каждые 400 мс происходит публикация сообщений от каждого агента
+ * каждые 2 сек происходит проверка на то, жив ли агент
+ * каждую секунду происходит накопление сообщений от остальных агентов
+ */
 public class RunningSendDiscovering {
 
     private Agent agent;
@@ -27,8 +32,8 @@ public class RunningSendDiscovering {
         service.scheduleWithFixedDelay(() -> {
             agentDetectorClass.startPublishing(aid1, 1200);
         }, 100, 400, TimeUnit.MILLISECONDS);
-        service.scheduleAtFixedRate(() -> agentDetectorClass.checkAgents(),
-                1000, 4000, TimeUnit.MILLISECONDS);
+        service.scheduleWithFixedDelay(() -> agentDetectorClass.checkAgents(),
+                1000, 2000, TimeUnit.MILLISECONDS);
 
         agentDetectorClass.startDiscovering();
     }

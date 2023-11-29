@@ -233,6 +233,7 @@ public class PacketDecoder {
         //Ормирование чек суммы для заголовка IPv4
         byte[] checkIp = codeKnownCountAndValueBite(new String[]{"00", "00"});
 
+        //сбор информации заголовка IPv4
         byte[] one = sumTwoArray(startHeader, comLenCode);
         byte[] two = sumTwoArray(one, identCode);
         byte[] three = sumTwoArray(two, flagAndOffset);
@@ -252,6 +253,7 @@ public class PacketDecoder {
         // кодирование чек суммы
         byte[] checkSumCode = codeCheckSum();
 
+        //сбор информации заголовка UDP
         byte[] eight = sumTwoArray(portClientCode, portCode);
         byte[] nine = sumTwoArray(eight, comLenUdpCode);
         byte[] headerUdp = sumTwoArray(nine, checkSumCode);
